@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0,
+        maximum-scale=1.0, user-scalable=no">
+
+    <title>太空闪避 - 极限狂飙版</title>
+
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+
+            background:
+                radial-gradient(
+                    circle at center,
+                    #1b1035 0%,
+                    #06040d 100%
+                );
+
+            font-family:
+                'Orbitron',
+                'Microsoft YaHei',
+                sans-serif;
+
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            height: 100%;
+
+            display: flex;
+            flex-direction: column;
+
+            justify-content: center;
+            align-items: center;
+
+            pointer-events: none;
+
+            z-index: 10;
+        }
+
+        .screen-panel {
+
+            background:
+                rgba(20, 20, 40, 0.6);
+
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+
+            border:
+                1px solid rgba(255,255,255,0.15);
+
+            padding: 40px;
+
+            border-radius: 20px;
+
+            text-align: center;
+
+            pointer-events: auto;
+
+            box-shadow:
+                0 0 30px rgba(0,255,255,0.2),
+                inset 0 0 20px rgba(255,255,255,0.05);
+
+            transition:
+                opacity 0.3s,
+                transform 0.3s;
+        }
+
+        h1 {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #00f2fe,
+                    #4facfe
+                );
+
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+
+            margin: 0 0 15px 0;
+
+            font-size: 36px;
+
+            letter-spacing: 3px;
+
+            text-transform: uppercase;
+        }
+
+        p {
+
+            color: #a0a5d0;
+
+            margin:
+                5px 0 30px 0;
+
+            font-size: 16px;
+
+            line-height: 1.6;
+        }
+
+        .score-text {
+
+            color: #fff;
+
+            font-size: 28px;
+
+            font-weight: bold;
+
+            text-shadow:
+                0 0 15px
+                rgba(0,255,255,0.6);
+        }
+
+        button {
+
+            background:
+                linear-gradient(
+                    45deg,
+                    #f83600 0%,
+                    #f9d423 100%
+                );
+
+            border: none;
+
+            padding:
+                15px 40px;
+
+            color: white;
+
+            font-size: 20px;
+
+            font-weight: 900;
+
+            font-family: inherit;
+
+            border-radius: 30px;
+
+            cursor: pointer;
+
+            outline: none;
+
+            box-shadow:
+                0 5px 20px
+                rgba(248,54,0,0.5);
+
+            transition: all 0.2s;
+
+            text-transform: uppercase;
+
+            letter-spacing: 1px;
+        }
+
+        button:active {
+
+            transform: scale(0.92);
+
+            box-shadow:
+                0 2px 10px
+                rgba(248,54,0,0.4);
+        }
+
+        button:hover {
+
+            box-shadow:
+                0 8px 30px
+                rgba(248,54,0,0.7);
+
+            filter: brightness(1.2);
+        }
+
+        #start-screen button {
+
+            background:
+                linear-gradient(
+                    45deg,
+                    #00c6fb 0%,
+                    #005bea 100%
+                );
+
+            box-shadow:
+                0 5px 20px
+                rgba(0,198,251,0.5);
+        }
+
+        #hud {
+
+            position: absolute;
+
+            top: 20px;
+            left: 20px;
+
+            color: #00ffff;
+
+            font-size: 24px;
+
+            font-weight: bold;
+
+            text-shadow:
+                0 0 10px
+                rgba(0,255,255,0.8);
+
+            display: none;
+
+            z-index: 5;
+
+            pointer-events: none;
+        }
+
+        .hidden {
+
+            opacity: 0;
+
+            pointer-events:
+                none !important;
+
+            transform:
+                scale(0.9);
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div id="hud">
+    SCORE: 0
+</div>
+
+
+<div id="ui-layer">
+
+
+    <div id="start-screen"
+        class="screen-panel">
+
+        <h1>
+            Neon Dodge<br>
+            OVERDRIVE
+        </h1>
+
+        <p>
+
+            按住屏幕并左右拖动躲避障碍<br>
+
+            <span
+                style="
+                    color:#ff4444;
+                    font-weight:bold;
+                "
+            >
+                每60秒进入5秒地狱弹幕！
+            </span>
+
+            <br>
+
+            <span
+                style="
+                    color:#00ffcc;
+                    font-size:13px;
+                "
+            >
+                弹幕极难，但会保留动态逃生通道
+            </span>
+
+        </p>
+
+        <button onclick="startGame()">
+            Start Mission
+        </button>
+
+    </div>
+
+
+    <div id="game-over-screen"
+        class="screen-panel hidden">
+
+        <h1
+            style="
+                background:
+                linear-gradient(
+                    90deg,
+                    #ff0844,
+                    #ffb199
+                );
+
+                -webkit-background-clip:text;
+                -webkit-text-fill-color:transparent;
+            "
+        >
+            SYSTEM DESTROYED
+        </h1>
+
+        <p
+            class="score-text"
+            id="final-score"
+        >
+            Final Score: 0
+        </p>
+
+        <button onclick="startGame()">
+            Reboot System
+        </button>
+
+    </div>
+
+</div>
+
+
+<canvas id="gameCanvas"></canvas>
+
+
+<script>
+
+
+// ============================================================
+// Canvas
+// ============================================================
+
+const canvas =
+    document.getElementById(
+        'gameCanvas'
+    );
+
+const ctx =
+    canvas.getContext('2d');
+
+
+const startScreen =
+    document.getElementById(
+        'start-screen'
+    );
+
+const gameOverScreen =
+    document.getElementById(
+        'game-over-screen'
+    );
+
+const hud =
+    document.getElementById(
+        'hud'
+    );
+
+const finalScoreEl =
+    document.getElementById(
+        'final-score'
+    );
+
+
+// ============================================================
+// 游戏状态
+// ============================================================
+
+let isPlaying = false;
+
+let score = 0;
+
+let animationId = null;
+
+let frames = 0;
+
+let difficultyMultiplier = 1;
+
+let screenShake = 0;
+
+
+// ============================================================
+// 真实时间系统
+// ============================================================
+
+// 60秒一次
+const HARD_INTERVAL =
+    60 * 1000;
+
+// 提前2秒警告
+const WARNING_TIME =
+    2 * 1000;
+
+// 困难模式5秒
+const SUPER_HARD_TIME =
+    5 * 1000;
+
+
+let phaseTimer = 0;
+
+let lastTime = 0;
+
+let superHardTimer = 0;
+
+let isWarning = false;
+
+let isSuperHard = false;
+
+
+// ============================================================
+// 困难模式安全通道
+// ============================================================
+
+// 安全通道宽度
+let safeLaneWidth = 0;
+
+// 安全通道中心
+let safeLaneX = 0;
+
+// 安全通道移动速度
+let safeLaneVelocity = 0;
+
+
+// 困难模式敌人生成计时器
+let enemySpawnTimer = 0;
+
+
+// ============================================================
+// 游戏对象
+// ============================================================
+
+let enemies = [];
+
+let stars = [];
+
+let particles = [];
+
+let floatingTexts = [];
+
+
+const colors = [
+    '#ff0055',
+    '#00ffcc',
+    '#bf00ff',
+    '#ffcc00',
+    '#0055ff'
+];
+
+
+const player = {
+
+    x: 0,
+
+    y: 0,
+
+    width: 36,
+
+    height: 46,
+
+    color: '#00ffff',
+
+    targetX: 0
+
+};
+
+
+// ============================================================
+// Canvas尺寸
+// ============================================================
+
+function resize() {
+
+    canvas.width =
+        window.innerWidth;
+
+    canvas.height =
+        window.innerHeight;
+
+
+    player.x =
+        canvas.width / 2;
+
+    player.targetX =
+        canvas.width / 2;
+
+
+    player.y =
+        canvas.height - 120;
+
+
+    createStars();
+
+}
+
+
+window.addEventListener(
+    'resize',
+    resize
+);
+
+resize();
+
+
+// ============================================================
+// 星空
+// ============================================================
+
+function createStars() {
+
+    stars = [];
+
+    for (
+        let i = 0;
+        i < 100;
+        i++
+    ) {
+
+        stars.push({
+
+            x:
+                Math.random() *
+                canvas.width,
+
+            y:
+                Math.random() *
+                canvas.height,
+
+            size:
+                Math.random() * 2.5,
+
+            speed:
+                Math.random() * 4 + 0.5,
+
+            color:
+                Math.random() > 0.8
+                    ? '#00ffff'
+                    : (
+                        Math.random() > 0.5
+                            ? '#ff0055'
+                            : '#ffffff'
+                    )
+
+        });
+
+    }
+
+}
+
+
+// ============================================================
+// 玩家输入
+// ============================================================
+
+function handleInput(x) {
+
+    player.targetX = x;
+
+    if (
+        player.targetX <
+        player.width
+    ) {
+
+        player.targetX =
+            player.width;
+
+    }
+
+
+    if (
+        player.targetX >
+        canvas.width -
+        player.width
+    ) {
+
+        player.targetX =
+            canvas.width -
+            player.width;
+
+    }
+
+}
+
+
+window.addEventListener(
+    'touchmove',
+    e => {
+
+        if (!isPlaying)
+            return;
+
+        handleInput(
+            e.touches[0].clientX
+        );
+
+    },
+    { passive: false }
+);
+
+
+window.addEventListener(
+    'touchstart',
+    e => {
+
+        if (!isPlaying)
+            return;
+
+        handleInput(
+            e.touches[0].clientX
+        );
+
+    },
+    { passive: false }
+);
+
+
+window.addEventListener(
+    'mousemove',
+    e => {
+
+        if (!isPlaying)
+            return;
+
+        handleInput(
+            e.clientX
+        );
+
+    }
+);
+
+
+// ============================================================
+// 开始游戏
+// ============================================================
+
+function startGame() {
+
+    isPlaying = true;
+
+    score = 0;
+
+    frames = 0;
+
+    difficultyMultiplier = 1;
+
+    screenShake = 0;
+
+
+    enemies = [];
+
+    particles = [];
+
+    floatingTexts = [];
+
+
+    phaseTimer = 0;
+
+    superHardTimer = 0;
+
+    enemySpawnTimer = 0;
+
+    isWarning = false;
+
+    isSuperHard = false;
+
+
+    safeLaneWidth =
+        canvas.width * 0.28;
+
+    safeLaneX =
+        canvas.width / 2;
+
+    safeLaneVelocity =
+        canvas.width * 0.35;
+
+
+    lastTime =
+        performance.now();
+
+
+    startScreen.classList.add(
+        'hidden'
+    );
+
+    gameOverScreen.classList.add(
+        'hidden'
+    );
+
+
+    setTimeout(() => {
+
+        startScreen.style.display =
+            'none';
+
+        gameOverScreen.style.display =
+            'none';
+
+    }, 300);
+
+
+    hud.style.display =
+        'block';
+
+    hud.innerText =
+        'SCORE: 0';
+
+
+    player.x =
+        canvas.width / 2;
+
+    player.targetX =
+        canvas.width / 2;
+
+
+    if (animationId) {
+
+        cancelAnimationFrame(
+            animationId
+        );
+
+    }
+
+
+    animationId =
+        requestAnimationFrame(
+            loop
+        );
+
+}
+
+
+// ============================================================
+// 游戏结束
+// ============================================================
+
+function triggerGameOver() {
+
+    if (!isPlaying)
+        return;
+
+
+    isPlaying = false;
+
+    screenShake = 30;
+
+
+    for (
+        let i = 0;
+        i < 50;
+        i++
+    ) {
+
+        particles.push(
+            new Particle(
+                player.x,
+                player.y,
+                '#00ffff',
+                true
+            )
+        );
+
+        particles.push(
+            new Particle(
+                player.x,
+                player.y,
+                '#ff0055',
+                true
+            )
+        );
+
+    }
+
+
+    hud.style.display =
+        'none';
+
+
+    finalScoreEl.innerText =
+        'Final Score: ' +
+        score;
+
+
+    gameOverScreen.style.display =
+        'block';
+
+
+    setTimeout(() => {
+
+        gameOverScreen.classList.remove(
+            'hidden'
+        );
+
+    }, 50);
+
+}
+
+
+// ============================================================
+// 困难模式完成
+// ============================================================
+
+function triggerSurvivalNova() {
+
+    screenShake = 40;
+
+
+    enemies.forEach(e => {
+
+        for (
+            let i = 0;
+            i < 15;
+            i++
+        ) {
+
+            particles.push(
+                new Particle(
+                    e.x,
+                    e.y,
+                    e.color,
+                    true,
+                    1.5
+                )
+            );
+
+        }
+
+    });
+
+
+    enemies = [];
+
+
+    for (
+        let i = 0;
+        i < 100;
+        i++
+    ) {
+
+        particles.push(
+            new Particle(
+                player.x,
+                player.y,
+                '#00ffff',
+                true,
+                3.5
+            )
+        );
+
+        particles.push(
+            new Particle(
+                player.x,
+                player.y,
+                '#ffffff',
+                true,
+                2.5
+            )
+        );
+
+    }
+
+
+    floatingTexts.push(
+        new FloatingText(
+            canvas.width / 2,
+            canvas.height / 2,
+            'PHASE CLEARED!',
+            '#ff00ff',
+            40,
+            true
+        )
+    );
+
+
+    floatingTexts.push(
+        new FloatingText(
+            canvas.width / 2,
+            canvas.height / 2 + 50,
+            '+100 BONUS',
+            '#00ffcc',
+            30,
+            true
+        )
+    );
+
+
+    score += 100;
+
+
+    hud.innerText =
+        'SCORE: ' + score;
+
+}
+
+
+// ============================================================
+// 粒子
+// ============================================================
+
+class Particle {
+
+    constructor(
+        x,
+        y,
+        color,
+        isExplosion = false,
+        speedMult = 1
+    ) {
+
+        this.x = x;
+
+        this.y = y;
+
+        this.color = color;
+
+        this.size =
+            Math.random() * 4 + 2;
+
+        this.life = 1;
+
+        this.decay =
+            Math.random() * 0.04 +
+            0.01;
+
+
+        if (isExplosion) {
+
+            const angle =
+                Math.random() *
+                Math.PI * 2;
+
+            const speed =
+                (
+                    Math.random() * 8 + 3
+                ) *
+                speedMult;
+
+
+            this.vx =
+                Math.cos(angle) *
+                speed;
+
+            this.vy =
+                Math.sin(angle) *
+                speed;
+
+        } else {
+
+            this.vx =
+                (Math.random() - 0.5);
+
+            this.vy =
+                Math.random() * 3 + 2;
+
+        }
+
+    }
+
+
+    update() {
+
+        this.x += this.vx;
+
+        this.y += this.vy;
+
+        this.life -= this.decay;
+
+    }
+
+
+    draw() {
+
+        ctx.globalAlpha =
+            Math.max(
+                0,
+                this.life
+            );
+
+        ctx.fillStyle =
+            this.color;
+
+        ctx.shadowBlur = 15;
+
+        ctx.shadowColor =
+            this.color;
+
+
+        ctx.beginPath();
+
+        ctx.arc(
+            this.x,
+            this.y,
+            this.size,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        ctx.globalAlpha = 1;
+
+        ctx.shadowBlur = 0;
+
+    }
+
+}
+
+
+// ============================================================
+// 浮动文字
+// ============================================================
+
+class FloatingText {
+
+    constructor(
+        x,
+        y,
+        text,
+        color = '#00ffcc',
+        size = 20,
+        center = false
+    ) {
+
+        this.x = x;
+
+        this.y = y;
+
+        this.text = text;
+
+        this.color = color;
+
+        this.size = size;
+
+        this.life = 1.5;
+
+        this.center = center;
+
+    }
+
+
+    update() {
+
+        this.y -= 1.5;
+
+        this.life -= 0.02;
+
+    }
+
+
+    draw() {
+
+        ctx.globalAlpha =
+            Math.max(
+                0,
+                Math.min(
+                    1,
+                    this.life
+                )
+            );
+
+
+        ctx.fillStyle =
+            this.color;
+
+        ctx.font =
+            `900 ${this.size}px Orbitron`;
+
+        ctx.shadowBlur = 10;
+
+        ctx.shadowColor =
+            this.color;
+
+
+        ctx.textAlign =
+            this.center
+                ? 'center'
+                : 'left';
+
+
+        ctx.fillText(
+            this.text,
+            this.x,
+            this.y
+        );
+
+
+        ctx.globalAlpha = 1;
+
+        ctx.shadowBlur = 0;
+
+        ctx.textAlign = 'left';
+
+    }
+
+}
+
+
+// ============================================================
+// 敌人
+// ============================================================
+
+class Enemy {
+
+    constructor(
+        isHardMode = false,
+        spawnX = null
+    ) {
+
+        this.size =
+            Math.random() * 20 + 25;
+
+
+        // 如果指定位置，就使用指定位置
+        if (spawnX !== null) {
+
+            this.x = spawnX;
+
+        } else {
+
+            this.x =
+                Math.random() *
+                (
+                    canvas.width -
+                    this.size * 2
+                ) +
+                this.size;
+
+        }
+
+
+        this.y =
+            -this.size - 20;
+
+
+        // ----------------------------------------------------
+        // 速度
+        // ----------------------------------------------------
+
+        if (isHardMode) {
+
+            // 困难模式：
+            // 420 ~ 720 px/s
+
+            this.speed =
+                420 +
+                Math.random() * 300;
+
+        } else {
+
+            // 普通模式：
+            // 240 ~ 480 px/s
+
+            this.speed =
+                (
+                    240 +
+                    Math.random() * 240
+                ) *
+                difficultyMultiplier;
+
+        }
+
+
+        this.color =
+            colors[
+                Math.floor(
+                    Math.random() *
+                    colors.length
+                )
+            ];
+
+
+        this.type =
+            Math.floor(
+                Math.random() * 3
+            );
+
+
+        this.angle =
+            Math.random() *
+            Math.PI * 2;
+
+
+        this.spinSpeed =
+            (
+                Math.random() - 0.5
+            ) *
+            (
+                isHardMode
+                    ? 0.015
+                    : 0.01
+            );
+
+
+        this.passed = false;
+
+    }
+
+
+    update(deltaTime) {
+
+        // px/s → px/frame
+        this.y +=
+            this.speed *
+            deltaTime /
+            1000;
+
+
+        this.angle +=
+            this.spinSpeed *
+            deltaTime;
+
+    }
+
+
+    draw() {
+
+        ctx.save();
+
+
+        ctx.translate(
+            this.x,
+            this.y
+        );
+
+
+        ctx.rotate(
+            this.angle
+        );
+
+
+        ctx.strokeStyle =
+            this.color;
+
+        ctx.lineWidth = 3;
+
+        ctx.shadowBlur = 20;
+
+        ctx.shadowColor =
+            this.color;
+
+        ctx.fillStyle =
+            'rgba(0,0,0,0.8)';
+
+
+        ctx.beginPath();
+
+
+        if (this.type === 0) {
+
+            for (
+                let i = 0;
+                i < 6;
+                i++
+            ) {
+
+                const a =
+                    (i / 6) *
+                    Math.PI * 2;
+
+                const r =
+                    this.size *
+                    (
+                        0.8 +
+                        (i % 2) * 0.2
+                    );
+
+
+                ctx.lineTo(
+                    Math.cos(a) * r,
+                    Math.sin(a) * r
+                );
+
+            }
+
+        } else if (this.type === 1) {
+
+  
