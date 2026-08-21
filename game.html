@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>太空闪避 - 终极试炼版</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1b1035 0%, #06040d 100%);
+            font-family: 'Orbitron', 'Microsoft YaHei', sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .screen-panel {
+            background: rgba(20, 20, 40, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            pointer-events: auto;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(255, 255, 255, 0.05);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        h1 {
+            background: linear-gradient(90deg, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0 0 15px 0;
+            font-size: 36px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        p {
+            color: #a0a5d0;
+            margin: 5px 0 30px 0;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .score-text {
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+        }
+
+        button {
+            background: linear-gradient(45deg, #f83600 0%, #f9d423 100%);
+            border: none;
+            padding: 15px 40px;
+            color: white;
+            font-size: 20px;
+            font-weight: 900;
+            font-family: inherit;
+            border-radius: 30px;
+            cursor: pointer;
+            outline: none;
+            box-shadow: 0 5px 20px rgba(248, 54, 0, 0.5);
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:active {
+            transform: scale(0.92);
+            box-shadow: 0 2px 10px rgba(248, 54, 0, 0.4);
+        }
+
+        button:hover {
+            box-shadow: 0 8px 30px rgba(248, 54, 0, 0.7);
+            filter: brightness(1.2);
+        }
+
+        #start-screen button {
+            background: linear-gradient(45deg, #00c6fb 0%, #005bea 100%);
+            box-shadow: 0 5px 20px rgba(0, 198, 251, 0.5);
+        }
+
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ffff;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            display: none;
+            z-index: 5;
+            pointer-events: none;
+        }
+        
+        .hidden {
+            opacity: 0;
+            pointer-events: none !important;
+            transform: scale(0.9);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">SCORE: 0</div>
+
+    <div id="ui-layer">
+        <div id="start-screen" class="screen-panel">
+            <h1>Neon Dodge<br>ULTIMATE</h1>
+            <p>按住屏幕并左右拖动躲避障碍<br><span style="color:#ff4444; font-weight:bold;">警告：每500分将遭遇高能关卡洗礼！</span></p>
+            <button onclick="startGame()">Start Mission</button>
+        </div>
+
+        <div id="game-over-screen" class="screen-panel hidden">
+            <h1 style="background: linear-gradient(90deg, #ff0844, #ffb199); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SYSTEM DESTROYED</h1>
+            <p class="score-text" id="final-score">Final Score: 0</p>
+            <button onclick="startGame()">Reboot System</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const hud = document.getElementById('hud');
+    const finalScoreEl = document.getElementById('final-score');
+
+    let isPlaying = false;
+    let score = 0;
+    let animationId;
+    let frames = 0;
+    let difficultyMultiplier = 1;
+    let screenShake = 0;
+
+    // 修改为 500 分触发一次
+    let nextHardScore = 500;
+    let isWarning = false;
+    let isSuperHard = false;
+    let warningTimer = 0;
+    let superHardTimer = 0;
+
+    let enemies = [];
+    let stars = [];
+    let particles = [];
+    let floatingTexts = [];
+
+    const colors = ['#ff0055', '#00ffcc', '#bf00ff', '#ffcc00', '#0055ff'];
+
+    const player = {
+        x: 0, y: 0, width: 36, height: 46, color: '#00ffff', targetX: 0
+    };
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        player.x = canvas.width / 2;
+        player.targetX = canvas.width / 2;
+        player.y = canvas.height - 120;
+        createStars();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function createStars() {
+        stars = [];
+        for(let i=0; i<100; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2.5,
+                speed: Math.random() * 4 + 0.5,
+                color: Math.random() > 0.8 ? '#00ffff' : (Math.random() > 0.5 ? '#ff0055' : '#ffffff')
+            });
+        }
+    }
+
+    function handleInput(x) {
+        player.targetX = x;
+        if (player.targetX < player.width) player.targetX = player.width;
+        if (player.targetX > canvas.width - player.width) player.targetX = canvas.width - player.width;
+    }
+
+    window.addEventListener('touchmove', (e) => { if (isPlaying) handleInput(e.touches[0].clientX); }, { passive: false });
+    window.addEventListener('touchstart', (e) => { if (isPlaying) handleInput(e.touches[0].clientX); }, { passive: false });
+    window.addEventListener('mousemove', (e) => { if (isPlaying) handleInput(e.clientX); });
+
+    function startGame() {
+        isPlaying = true;
+        score = 0;
+        frames = 0;
+        difficultyMultiplier = 1;
+        enemies = [];
+        particles = [];
+        floatingTexts = [];
+        screenShake = 0;
+        
+        nextHardScore = 500;
+        isWarning = false;
+        isSuperHard = false;
+        
+        startScreen.classList.add('hidden');
+        gameOverScreen.classList.add('hidden');
+        setTimeout(() => {
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+        }, 300);
+        hud.style.display = 'block';
+        hud.innerText = 'SCORE: 0';
+        player.x = canvas.width / 2;
+        player.targetX = canvas.width / 2;
+
+        if (animationId) cancelAnimationFrame(animationId);
+        loop();
+    }
+
+    function triggerGameOver() {
+        isPlaying = false;
+        screenShake = 30; 
+        for(let i=0; i<50; i++) {
+            particles.push(new Particle(player.x, player.y, '#00ffff', true));
+            particles.push(new Particle(player.x, player.y, '#ff0055', true));
+        }
+        hud.style.display = 'none';
+        finalScoreEl.innerText = 'Final Score: ' + score;
+        gameOverScreen.style.display = 'block';
+        setTimeout(() => gameOverScreen.classList.remove('hidden'), 50);
+    }
+
+    function triggerSurvivalNova() {
+        screenShake = 40;
+        
+        enemies.forEach(e => {
+            for(let i=0; i<15; i++) {
+                particles.push(new Particle(e.x, e.y, e.color, true, 1.5));
+            }
+        });
+        enemies = [];
+
+        for(let i=0; i<100; i++) {
+            particles.push(new Particle(player.x, player.y, '#00ffff', true, 3.5));
+            particles.push(new Particle(player.x, player.y, '#ffffff', true, 2.5));
+        }
+
+        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/2, "PHASE CLEARED!", '#ff00ff', 40, true));
+        floatingTexts.push(new FloatingText(canvas.width/2, canvas.height/2 + 50, "+250 BONUS", '#00ffcc', 30, true));
+        
+        score += 250;
+        hud.innerText = 'SCORE: ' + score;
+    }
+
+    class Particle {
+        constructor(x, y, color, isExplosion = false, speedMult = 1) {
+            this.x = x; this.y = y; this.color = color;
+            this.size = Math.random() * 4 + 2;
+            this.life = 1;
+            this.decay = Math.random() * 0.04 + 0.01;
+            
+            if (isExplosion) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (Math.random() * 8 + 3) * speedMult;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+            } else {
+                this.vx = (Math.random() - 0.5) * 1;
+                this.vy = Math.random() * 3 + 2;
+            }
+        }
+        update() {
+            this.x += this.vx; this.y += this.vy;
+            this.life -= this.decay;
+        }
+        draw() {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    class FloatingText {
+        constructor(x, y, text, color = '#00ffcc', size = 20, center = false) {
+            this.x = x; this.y = y; this.text = text;
+            this.color = color; this.size = size;
+            this.life = 1.5;
+            this.center = center;
+        }
+        update() {
+            this.y -= 1.5;
+            this.life -= 0.02;
+        }
+        draw() {
+            ctx.globalAlpha = Math.max(0, Math.min(1, this.life));
+            ctx.fillStyle = this.color;
+            ctx.font = `900 ${this.size}px Orbitron`;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = this.color;
+            ctx.textAlign = this.center ? 'center' : 'left';
+            ctx.fillText(this.text, this.x, this.y);
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'left';
+        }
+    }
+
+    class Enemy {
+        constructor(isHardMode) {
+            this.size = Math.random() * 20 + 25; 
+            this.x = Math.random() * (canvas.width - this.size * 2) + this.size;
+            this.y = -this.size - 20;
+            // 数量虽然减少，但速度依然极快，确保具有压迫感且完全能靠技术躲过去
+            let baseSpeed = isHardMode ? (Math.random() * 5 + 8) : (Math.random() * 4 + 4);
+            this.speed = baseSpeed * difficultyMultiplier;
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            this.type = Math.floor(Math.random() * 3);
+            this.angle = Math.random() * Math.PI * 2;
+            this.spinSpeed = (Math.random() - 0.5) * (isHardMode ? 0.35 : 0.15);
+            this.passed = false;
+        }
+        update() {
+            this.y += this.speed;
+            this.angle += this.spinSpeed;
+        }
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = this.color;
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.beginPath();
+            if (this.type === 0) {
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2;
+                    const r = this.size * (0.8 + (i%2)*0.2); 
+                    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                }
+            } else if (this.type === 1) {
+                for (let i = 0; i < 8; i++) {
+                    const a = (i / 8) * Math.PI * 2;
+                    const r = i % 2 === 0 ? this.size : this.size * 0.3;
+                    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                }
+            } else {
+                ctx.moveTo(0, -this.size);
+                ctx.lineTo(this.size*0.6, 0);
+                ctx.lineTo(0, this.size);
+                ctx.lineTo(-this.size*0.6, 0);
+            }
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    function drawPlayer(tilt) {
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.rotate(tilt);
+        ctx.shadowBlur = isSuperHard ? 30 : 20;
+        ctx.shadowColor = isSuperHard ? '#ff0055' : player.color;
+        
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.moveTo(0, -player.height/2 - 10);
+        ctx.lineTo(player.width/2, player.height/2);
+        ctx.lineTo(0, player.height/2 - 10);
+        ctx.lineTo(-player.width/2, player.height/2);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = isSuperHard ? '#ff0000' : '#0055ff';
+        ctx.beginPath();
+        ctx.moveTo(0, -player.height/2 + 5);
+        ctx.lineTo(8, player.height/4);
+        ctx.lineTo(-8, player.height/4);
+        ctx.fill();
+
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = isSuperHard ? '#ffcc00' : '#00ffcc';
+        ctx.fillStyle = isSuperHard ? '#ffcc00' : '#00ffcc';
+        ctx.fillRect(-12, player.height/2 - 10, 8, 5);
+        ctx.fillRect(4, player.height/2 - 10, 8, 5);
+        ctx.restore();
+    }
+
+    function loop() {
+        ctx.fillStyle = isSuperHard ? 'rgba(30, 0, 10, 0.4)' : 'rgba(10, 10, 20, 0.4)'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        if (screenShake > 0) {
+            ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+            screenShake *= 0.85;
+            if (screenShake < 0.5) screenShake = 0;
+        }
+
+        stars.forEach(star => {
+            let speedMod = isSuperHard ? 3 : 1;
+            star.y += star.speed * difficultyMultiplier * speedMod;
+            if(star.y > canvas.height) {
+                star.y = 0; star.x = Math.random() * canvas.width;
+            }
+            ctx.fillStyle = star.color;
+            ctx.globalAlpha = star.speed / 5;
+            if (isSuperHard) ctx.globalAlpha = 1;
+            ctx.fillRect(star.x, star.y, star.size, star.size * (isSuperHard ? 4 : 1));
+        });
+        ctx.globalAlpha = 1;
+
+        if (isPlaying) {
+            frames++;
+
+            if (score >= nextHardScore && !isWarning && !isSuperHard) {
+                isWarning = true;
+                warningTimer = 120; // 2秒预警
+                screenShake = 5;
+            }
+
+            if (isWarning) {
+                warningTimer--;
+                screenShake = 3;
+                
+                ctx.save();
+                ctx.fillStyle = '#ff0055';
+                ctx.textAlign = 'center';
+                ctx.font = '900 40px Orbitron';
+                ctx.globalAlpha = Math.abs(Math.sin(frames * 0.15));
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0055';
+                ctx.fillText("WARNING", canvas.width/2, canvas.height/3);
+                ctx.font = '700 20px Orbitron';
+                ctx.fillText("HIGH SPEED SECTOR", canvas.width/2, canvas.height/3 + 40);
+                ctx.restore();
+
+                if (warningTimer <= 0) {
+                    isWarning = false;
+                    isSuperHard = true;
+                    superHardTimer = 300; // 5秒高能期
+                    screenShake = 15;
+                }
+            }
+
+            if (isSuperHard) {
+                superHardTimer--;
+                
+                ctx.save();
+                ctx.shadowBlur = 50;
+                ctx.shadowColor = '#ff0000';
+                ctx.strokeStyle = `rgba(255, 0, 0, ${Math.abs(Math.sin(frames*0.1))*0.5 + 0.2})`;
+                ctx.lineWidth = 20;
+                ctx.strokeRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+
+                if (superHardTimer <= 0) {
+                    isSuperHard = false;
+                    nextHardScore = Math.floor((score + 500) / 500) * 500;
+                    triggerSurvivalNova();
+                }
+            }
+
+            const dx = player.targetX - player.x;
+            player.x += dx * (isSuperHard ? 0.25 : 0.15);
+            const tilt = dx * 0.02; 
+            
+            if (frames % 2 === 0) {
+                let thrustColor = isSuperHard ? '#ff0055' : '#00ffcc';
+                particles.push(new Particle(player.x - 8, player.y + 15, thrustColor));
+                particles.push(new Particle(player.x + 8, player.y + 15, thrustColor));
+            }
+
+            drawPlayer(Math.max(-0.5, Math.min(0.5, tilt)));
+
+            if (!isWarning) {
+                let spawnRate = Math.max(15, 50 - Math.floor(score/150));
+                // 相比原先密集的弹幕，这里将高能阶段生成频率略微下调（从 5 改为 9），数量更舒适但速度极快，保证极难却必定可过
+                if (isSuperHard) spawnRate = 9; 
+
+                if (frames % spawnRate === 0) {
+                    enemies.push(new Enemy(isSuperHard));
+                }
+            }
+
+            for (let i = 0; i < enemies.length; i++) {
+                let e = enemies[i];
+                e.update();
+                e.draw();
+
+                const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                if (dist < (e.size * 0.7 + player.width * 0.5)) {
+                    triggerGameOver();
+                }
+
+                if (e.y > player.y && !e.passed) {
+                    e.passed = true;
+                    score += 10;
+                    hud.innerText = 'SCORE: ' + score;
+                    floatingTexts.push(new FloatingText(e.x, player.y - 20, '+10'));
+                    
+                    if (score % 300 === 0 && !isSuperHard) {
+                        difficultyMultiplier += 0.08;
+                    }
+                }
+
+                if (e.y > canvas.height + e.size) {
+                    enemies.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        for (let i = 0; i < particles.length; i++) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].life <= 0) {
+                particles.splice(i, 1);
+                i--;
+            }
+        }
+
+        for (let i = 0; i < floatingTexts.length; i++) {
+            floatingTexts[i].update();
+            floatingTexts[i].draw();
+            if (floatingTexts[i].life <= 0) {
+                floatingTexts.splice(i, 1);
+                i--;
+            }
+        }
+
+        ctx.restore();
+
+        if (isPlaying || particles.length > 0) {
+            animationId = requestAnimationFrame(loop);
+        }
+    }
+</script>
+</body>
+</html>
